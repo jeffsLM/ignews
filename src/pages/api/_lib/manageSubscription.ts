@@ -29,7 +29,7 @@ export async function saveSubscription(
     );
   } else {
 
-    console.log("alter stripre")
+
     await fauna.query(
       q.Replace(
         q.Select(
