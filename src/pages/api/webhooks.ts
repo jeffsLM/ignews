@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { Readable } from "stream";
 import Stripe from "stripe";
 import { stripe } from "../../services/stripe";
+import { saveSubscription } from "./_lib/manageSubscription";
 
 async function buffer(readble: Readable) {
   const chuncks = [];
@@ -19,7 +20,11 @@ export const config = {
   },
 };
 
-export const relevantEvents = new Set(["checkout.session.completed"]);
+export const relevantEvents = new Set([
+  "checkout.session.completed",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+]);
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === "POST") {
@@ -44,7 +49,28 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
       console.log("evento recebido", event);
       try {
         switch (type) {
+            
+          case "customer.subscription.updated":
+          case "customer.subscription.deleted":
+            const subscription = event.data.object as Stripe.Subscription;
+
+            await saveSubscription(
+              subscription.id.toString(),
+              subscription.customer.toString(),
+              false
+            );
+
+            break;
           case "checkout.session.completed":
+            const checkoutSession = event.data
+              .object as Stripe.Checkout.Session;
+
+            await saveSubscription(
+              checkoutSession.subscription.toString(),
+              checkoutSession.customer.toString(),
+              true
+            );
+
             break;
 
           default:
@@ -52,7 +78,7 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
             break;
         }
       } catch (e) {
-          //sentry , bugsnag
+        //sentry , bugsnag
         return res.json({ error: "Webhook handler failed." });
       }
     }
